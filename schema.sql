@@ -6,7 +6,7 @@ CREATE TABLE active_rental_licenses (
   milestone VARCHAR,
   tier VARCHAR,
   status VARCHAR,
-  issuee_date TIMESTAMPTZ,
+  issue_date TIMESTAMPTZ,
   expiration_date TIMESTAMPTZ,
   address VARCHAR,
   owner_name VARCHAR,
