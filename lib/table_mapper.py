@@ -40,11 +40,9 @@ class Column:
 
 
 class TableMap:
-  def __init__(self, database_url='', tablename='', schema_path='./schema.sql', mapping=[]):
+  def __init__(self, database_url='', mapping=[]):
     self.columns = collections.OrderedDict()
     self.database = Database(database_url=database_url)
-    self.tablename = tablename
-    self.schema_path = schema_path 
     self.csv_sql_colnames = {}
     for x in mapping:
       self.csv_sql_colnames[x[0]] = x[1] if x[1] else x[0]
@@ -62,8 +60,8 @@ class TableMap:
     col = Column(csv_colname, sql_colname, pytype, transformer)
     self.columns.update({ col.get_sql_colname(): col })
 
-  def generate_schema_string(self):
-    rv = f'CREATE TABLE {self.tablename} (\n'
+  def generate_schema_string(self, table_name=''):
+    rv = f'CREATE TABLE {table_name} (\n'
     for i, colname in enumerate(self.columns):
       col = self.columns[colname]
       if i < len(self.columns) - 1:
@@ -73,39 +71,41 @@ class TableMap:
     rv += ');'
     return rv
 
-  def write_schema_file(self):
-    with open(os.path.abspath(self.schema_path), 'w') as f:
-      f.write(self.generate_schema_string())
+  def write_schema_file(self, table_name='', schema_path='./schema.sql'):
+    with open(os.path.abspath(schema_path), 'w') as f:
+      f.write(self.generate_schema_string(table_name))
 
-  def create_table(self):
-    with open(os.path.abspath(self.schema_path)) as f:
+  def create_table(self, schema_path='./schema.sql'):
+    with open(os.path.abspath(schema_path)) as f:
       schema = f.read()
     try:
       self.database.execute(schema)
     except Exception as exc:
       print('The was an error when trying to create the table', exc)
     
-  def transfer_data(self, csv_rows):
+  def transfer_data(self, table_name='', csv_rows=[]):
     '''
     Insert data into the postgres table
     '''
-    sql = create_insert_statement(self.tablename, self.columns.keys())
+    sql = create_insert_statement(table_name, self.columns.keys())
     rows = []
     for csv_row in csv_rows:
       row = {}
       for csv_colname in csv_row:
-        sql_colname = self.csv_sql_colnames[csv_colname]
-        if self.columns[sql_colname].transformer:
-          row[sql_colname] = self.columns[sql_colname].transformer(csv_row[csv_colname])
-        else:
-          row[sql_colname] = csv_row[csv_colname]
+        sql_colname = self.csv_sql_colnames.get(csv_colname)
+        if sql_colname:
+          if self.columns[sql_colname].transformer:
+            row[sql_colname] = self.columns[sql_colname].transformer(csv_row[csv_colname])
+          else:
+            row[sql_colname] = csv_row[csv_colname]
       rows.append(row)
+    print(rows[0])
     self.database.execute_many(sql, rows)
         
 
 
-def create_insert_statement(tablename, col_names):
-  sql = f'INSERT INTO {tablename} VALUES ('
+def create_insert_statement(table_name, col_names):
+  sql = f'INSERT INTO {table_name} VALUES ('
   for i, col_name in enumerate(col_names):
     if i < len(col_names) - 1:
       sql += f'%({col_name})s, '
