@@ -4,7 +4,7 @@ from datetime import date
 from .database import Database
 from .schema_file import SchemaFile
 
-def create_insert_statement(table_name, col_names):
+def create_insert_statement(table_name, col_names, use_uuid):
   rv = 'INSERT INTO {} VALUES ('.format(table_name)
   for i, col_name in enumerate(col_names):
     if i < len(col_names) - 1:
@@ -50,14 +50,13 @@ class Column:
   
 
 class TableMap:
-  def __init__(self, config={}):
+  def __init__(self, database_url='', schema_directory='./schemas', use_uuid=False, mapping=[]):
     self.columns = collections.OrderedDict()
     self.csv_sql_colnames = {}
-    self.database = Database(database_url=config.get('database_url'))
-    self.table_name = config.get('table_name')
-    self.schema_name = config.get('schema_name', 'schema')
-    self.schema_directory = config.get('schema_directory', './schemas')
-    for x in config.get('mapping', []):
+    self.use_uuid = use_uuid
+    self.database = Database(database_url=database_url)
+    self.schema_directory = schema_directory
+    for x in mapping:
       self.csv_sql_colnames[x[0]] = x[1] if x[1] else x[0]
       self.add_column(
         csv_colname=x[0],
@@ -73,12 +72,12 @@ class TableMap:
     col = Column(csv_colname, sql_colname, pytype, transformer)
     self.columns.update({ col.get_sql_colname(): col })
 
-  def generate_schema_string(self, use_uuid=False):
+  def generate_schema_string(self, table_name):
     rv = ''
-    if use_uuid:
+    if self.use_uuid:
       rv += 'CREATE EXTENSION IF NOT EXISTS "uuid-ossp";\n\n'
-    rv += 'CREATE TABLE {} (\n'.format(self.table_name)
-    if use_uuid:
+    rv += 'CREATE TABLE {} (\n'.format(table_name)
+    if self.use_uuid:
       rv += ' id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),\n'
     for i, col_name in enumerate(self.columns):
       col = self.get_column(col_name)
@@ -89,19 +88,19 @@ class TableMap:
     rv += ');'
     return rv
 
-  def write_schema_file(self, use_uuid=False):
+  def write_schema_file(self, schema_name, table_name):
     SchemaFile.write(
-      self.schema_name,
-      self.generate_schema_string(use_uuid),
+      schema_name,
+      self.generate_schema_string(table_name),
       self.schema_directory
     )
   
-  def create_table(self):
-    sql = SchemaFile.read(self.schema_name, self.schema_directory)
+  def create_table(self, schema_name):
+    sql = SchemaFile.read(schema_name, self.schema_directory)
     self.database.execute(sql)
 
-  def transfer_data(self, csv_rows=[]):
-    sql = create_insert_statement(self.table_name, self.columns.keys())
+  def transfer_data(self, table_name, csv_rows=[]):
+    sql = create_insert_statement(table_name, self.columns.keys(), self.use_uuid)
     rows = []
     for csv_row in csv_rows:
       row = {}
