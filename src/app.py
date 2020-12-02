@@ -80,17 +80,21 @@ class App:
       '''
       List all schema files
       '''
+      click.echo('')
       for x in os.listdir(self.schema_directory):
-        click.echo(x)
+        click.echo(x[:-4])
 
     
     @click.command()
-    @click.option('-s', '--schema-name', help='The name of the file containing the sql statement that will be used to create your database table')
+    @click.argument('schema_name')
     def show(schema_name):
       '''
-      Show contents of schema file
+      Show contents of schema file matching SCHEMA_NAME
       '''
-      click.echo(SchemaFile.read(schema_name, self.schema_directory))
+      try:
+        click.echo(SchemaFile.read(schema_name, self.schema_directory))
+      except:
+        click.echo('\nWe couldn\'t find a schema matching "{}" in {}'.format(schema_name, self.schema_directory))
 
 
 

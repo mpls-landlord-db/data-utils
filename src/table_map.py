@@ -5,7 +5,13 @@ from .database import Database
 from .schema_file import SchemaFile
 
 def create_insert_statement(table_name, col_names, use_uuid):
-  rv = 'INSERT INTO {} VALUES ('.format(table_name)
+  rv = 'INSERT INTO {} ('.format(table_name)
+  for i, col_name in enumerate(col_names):
+    if i < len(col_names) - 1:
+      rv += '{},'.format(col_name)
+    else:
+      rv += '{})'.format(col_name)
+  rv += ' VALUES ('
   for i, col_name in enumerate(col_names):
     if i < len(col_names) - 1:
       rv += '%({})s, '.format(col_name)
@@ -111,5 +117,18 @@ class TableMap:
             row[sql_colname] = self.columns[sql_colname].transformer(csv_row[csv_colname])
           else:
             row[sql_colname] = csv_row[csv_colname]
-        rows.append(row)
-    self.database.execute_many(sql, rows)
+      rows.append(row)
+    total_rows = len(rows)
+    chunk_size = 1000
+    complete_chunks = 0
+    print('')
+    print('   Inserting {} rows...'.format(total_rows))
+    print('')
+    while len(rows):
+      chunk = rows[:chunk_size]
+      rows = rows[chunk_size:]
+      self.database.execute_many(sql, chunk)
+      complete_chunks += 1
+      complete_rows = complete_chunks * chunk_size if complete_chunks * chunk_size < total_rows else total_rows 
+      percent_complete = round((complete_rows / total_rows) * 100)
+      print('   {}% complete'.format(percent_complete), end='\r' if percent_complete < 100 else '\n')
